@@ -1,5 +1,7 @@
 ## clean data
 library(tidyverse)
+setwd(here::here())
+source("raw-data/filter-unions.R")
 
 dtich_danso <- read_csv("raw-data/dientich_danso.csv") %>%
   janitor::clean_names()
@@ -12,8 +14,11 @@ dtich_danso <- read_csv("raw-data/dientich_danso.csv") %>%
 union_regions <- dtich_danso %>%
   arrange(desc(x2011_dien_tich_km2)) %>%
   slice(1:7) %>%
-  pull(dia_phuong)
+  pull(dia_phuong) %>%
+  c(c("Ðồng bằng sông Hồng","Ðông Nam Bộ", "Ðồng bằng sông Cửu Long"))
 
+#write_rds(union_regions, "raw-data/filter_unions.rds")
+union_regions <- read_rds("raw-data/filter_unions.rds")
 
 dtich_danso <- dtich_danso %>%
   filter(!(dia_phuong %in% union_regions)) %>%
@@ -27,7 +32,8 @@ dtich_danso <- dtich_danso %>%
 gioi_tinh <- read_csv("raw-data/gioitinh.csv") %>%
   janitor::clean_names()
 
-gioi_tinh <- gioi_tinh %>% filter(!(tinh_thanh_pho %in% union_regions)) %>%
+gioi_tinh <- gioi_tinh %>%
+  filter(!(tinh_thanh_pho %in% union_regions)) %>%
   filter(!tinh_thanh_pho %in% c("Ðồng bằng sông Hồng","Ðông Nam Bộ", "Ðồng bằng sông Cửu Long")) %>%
   mutate(across(everything(), as.character)) %>%
   pivot_longer(-tinh_thanh_pho, names_to = c("category", "year"), names_pattern = "(.*)_(\\d{4})",
@@ -42,11 +48,28 @@ gioi_tinh <- gioi_tinh %>% filter(!(tinh_thanh_pho %in% union_regions)) %>%
 
 # labor -------------------------------------------------------------------
 laodong <-  read_csv("raw-data/laodong.csv") %>%
-  janitor::clean_names()
-laodong <- laodong %>%
-  filter(!(tinh_thanh_pho %in% union_regions)) %>%
-  filter(!tinh_thanh_pho %in% c("Ðồng bằng sông Hồng","Ðông Nam Bộ", "Ðồng bằng sông Cửu Long")) %>%
-  pivot_longer(-tinh_thanh_pho, names_to = "year") %>%
-  mutate(year = parse_number(year))
+  janitor::clean_names() %>%
+  filter_union()
 
 #write_rds(laodong, "cleanded-data/labor.rds")
+
+dn1 <- read_csv("raw-data/so_doanhnghiep.csv") %>%
+  janitor::clean_names() %>%
+  filter_union() %>%
+  rename(n_company = value)
+dn2 <- read_csv("raw-data/loinhuan_dn.csv") %>%
+  janitor::clean_names() %>%
+  filter_union() %>%
+  rename(company_revenue - value)
+
+# dn1 %>%
+#   full_join(dn2) %>%
+#   write_rds("cleanded-data/company.rds")
+
+
+
+
+
+
+
+
