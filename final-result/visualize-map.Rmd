@@ -1,0 +1,32 @@
+---
+title: "visualize-vnmap-statistic"
+author: "Haivo"
+date: "4/20/2021"
+output:
+  html_document:
+    code_folding: hide
+    number_sections: yes
+    toc: TRUE
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE,message = FALSE, fig.align = "center", warning = FALSE)
+library(tidyverse)
+library(plotly)
+library(echarts4r)
+library(here)
+library(glue)
+library(scales)
+
+```
+
+# Summary
+This project attempt to visualize the data from General Statistics Office of Vietnam into Vietnam map interactively\
+The statistic data come from the official [website](https://www.gso.gov.vn)\
+The map data come from Raster through R package `raster`\
+
+```{r}
+source(here("final-result/function/map-ggplotly.r"))
+ggplotly_population_vn()
+```
+
