@@ -23,9 +23,11 @@ union_regions <- read_rds("raw-data/filter_unions.rds")
 dtich_danso <- dtich_danso %>%
   filter(!(dia_phuong %in% union_regions)) %>%
   pivot_longer(-dia_phuong, names_to = c("year", ".value"), names_pattern = "x(\\d{4})_(.*)") %>%
-  mutate(dia_phuong = str_to_title(dia_phuong))
+  mutate(dia_phuong = str_to_title(dia_phuong),
+         year = as_factor(year)) %>%
+  mutate(dia_phuong = if_else(dia_phuong == "Tp.hồ Chí Minh", "Hồ Chí Minh", dia_phuong))
 
-#write_rds(dtich_danso, "cleanded-data/area-population.rds")
+write_rds(dtich_danso, "cleanded-data/area-population.rds")
 
 # sex  --------------------------------------------------------------------
 
@@ -42,16 +44,18 @@ gioi_tinh <- gioi_tinh %>%
                               str_detect(category, "nu")~  "female",
                               str_detect(category, "nong_thon")~ "rural",
                               str_detect(category, "thanh_thi")~ "urban",
-                              TRUE ~ "total"))
+                              TRUE ~ "total")) %>%
+  mutate(year = as_factor(year))
 
-#write_rds(gioi_tinh, "cleanded-data/sex.rds")
+write_rds(gioi_tinh, "cleanded-data/sex.rds")
 
 # labor -------------------------------------------------------------------
 laodong <-  read_csv("raw-data/laodong.csv") %>%
   janitor::clean_names() %>%
-  filter_union()
+  filter_union() %>%
+  mutate(year = as_factor(year))
 
-#write_rds(laodong, "cleanded-data/labor.rds")
+write_rds(laodong, "cleanded-data/labor.rds")
 
 dn1 <- read_csv("raw-data/so_doanhnghiep.csv") %>%
   janitor::clean_names() %>%
@@ -60,11 +64,12 @@ dn1 <- read_csv("raw-data/so_doanhnghiep.csv") %>%
 dn2 <- read_csv("raw-data/loinhuan_dn.csv") %>%
   janitor::clean_names() %>%
   filter_union() %>%
-  rename(company_revenue - value)
+  rename(company_revenue = value)
 
-# dn1 %>%
-#   full_join(dn2) %>%
-#   write_rds("cleanded-data/company.rds")
+dn1 %>%
+  full_join(dn2) %>%
+  mutate(year = as_factor(year)) %>%
+  write_rds("cleanded-data/company.rds")
 
 
 
