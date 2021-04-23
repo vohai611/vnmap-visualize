@@ -5,7 +5,6 @@ date: "4/20/2021"
 output:
   html_document:
     code_folding: hide
-    number_sections: yes
     toc: TRUE
 ---
 
@@ -20,13 +19,18 @@ library(scales)
 
 ```
 
-# Summary
-This project attempt to visualize the data from General Statistics Office of Vietnam into Vietnam map interactively\
+# Summary{-}
+This project attempt to visualize the the change of Vietnam economic over the time using data from General Statistics Office of Vietnam into Vietnam map interactively\
 The statistic data come from the official [website](https://www.gso.gov.vn)\
 The map data come from Raster through R package `raster`\
 
-```{r}
-source(here("final-result/function/map-ggplotly.r"))
+# Outline 
+1. General analysis and visualization + interactive map
+2. Severless dashboad
+
+
+```{r fig.height= 8}
+source(here("echart-functions//map-ggplotly.r"))
 ggplotly_population_vn()
 ```
 

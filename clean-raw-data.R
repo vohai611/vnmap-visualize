@@ -72,8 +72,12 @@ dn1 %>%
   write_rds("cleanded-data/company.rds")
 
 
-
-
+read_csv("raw-data/labor-by-age.csv") %>%
+  janitor::clean_names() %>%
+  pivot_longer(-nhom_tuoi) %>%
+  mutate(nhom_tuoi = if_else(nhom_tuoi =='TỔNG SỐ', "total", nhom_tuoi)) %>%
+  transmute(nhom_tuoi, year = parse_number(name), n_labor = value) %>%
+  write_rds("cleanded-data/labor-by-age.rds")
 
 
 
