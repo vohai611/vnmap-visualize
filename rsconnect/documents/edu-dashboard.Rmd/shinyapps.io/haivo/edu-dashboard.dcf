@@ -1,0 +1,12 @@
+name: edu-dashboard
+title: edu-dashboard
+username:
+account: haivo
+server: shinyapps.io
+hostUrl: https://api.shinyapps.io/v1
+appId: 4031975
+bundleId: 4520507
+url: https://haivo.shinyapps.io/edu-dashboard/
+when: 1619442902.81769
+asMultiple: FALSE
+asStatic: FALSE

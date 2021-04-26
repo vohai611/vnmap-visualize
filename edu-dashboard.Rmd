@@ -1,0 +1,91 @@
+---
+title: "Vietnam education dashboard"
+output: 
+  flexdashboard::flex_dashboard:
+    orientation: rows
+    vertical_layout: scroll
+runtime:: shiny
+---
+
+```{r setup, include=FALSE}
+library(flexdashboard)
+library(tidyverse)
+library(echarts4r)
+library(DT)
+library(here)
+library(shiny)
+
+## load file
+
+geojson_map <- read_rds("cleanded-data/geojson_vnmap.rds")
+school_stat <- read_rds("cleanded-data/education/n_school-student-teacher.rds")
+
+school_stat <- school_stat %>% 
+  mutate(clean_name = if_else(clean_name == "tp_ho_chi_minh", "ho_chi_minh", clean_name)) %>% 
+  mutate(stu_class = n_student/ n_class,
+         teacher_class= n_teacher/ n_class,
+         stu_teacher= n_student/n_teacher) %>% 
+  select(-n_school) %>% 
+  pivot_longer(cols = -c(clean_name, dia_phuong, year, education_level)) %>% 
+  mutate(value = round(value,1)) 
+ 
+
+```
+
+Column {.sidebar data-width=300}
+-----------------------------------------------------------------------
+
+### Choose subset data
+
+```{r}
+education_lvl <- unique(school_stat$education_level)
+names(education_lvl) <-   c("Elementary school", "Middle school", "Highschool")
+
+category <- unique(school_stat$name)
+names(category) <-  c("Number of student",
+                      "Number of teacher",
+                      "Number of class",
+                      "Student-class-ratio",
+                      "Teacher-class-ratio",
+                      "Student-teacher-ratio")
+selectInput("education", "Education Stage", choices = education_lvl )
+selectInput("category", "Information", choices = category)
+
+```
+
+
+Row {.tabset .tabset-fade data-height=800}
+-----------------------------------------------------------------------
+
+### Data on map
+
+```{r}
+renderEcharts4r({
+  school_stat %>% 
+  filter(name %in% input$category,
+         education_level %in% input$education) %>% 
+  group_by(year) %>% 
+  e_charts(clean_name,timeline = TRUE) %>%
+  e_map_register("vn", geojson_map) %>%
+  e_map(value, map = "vn") %>%
+  e_visual_map(value) %>%
+  e_theme("shine") 
+})
+
+```
+
+### Data on table
+
+```{r}
+renderDT({
+  school_stat %>% 
+  filter(name %in% input$category,
+         education_level %in% input$education) %>% 
+    select(dia_phuong, name, value) %>% 
+    datatable(extensions = c("Buttons","Responsive"),
+  options = list(
+    dom = "Bfrtip",
+    buttons = c("csv")))
+})
+```
+

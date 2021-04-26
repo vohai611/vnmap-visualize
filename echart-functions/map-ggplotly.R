@@ -25,7 +25,7 @@ ggplotly_population_vn <- function() {
                          group = group,
                          fill = danso,
                          text = glue(
-                           "Town: {id}
+                           "Province: {id}
                 area: {scales::comma(dien_tich_km2)} km2
                 population: {round(danso, 1)} mil
                 pop/km2: {mat_do_dan_so_nguoi_km2}"
