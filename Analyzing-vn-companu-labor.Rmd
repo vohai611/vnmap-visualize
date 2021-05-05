@@ -1,37 +1,40 @@
 ---
-title: "Analyzing Vietnam company and labor"
+title: "Analyzing companies’ revenues and the labor workforce in Vietnam"
 author: "Haivo"
 date: "4/21/2021"
-output:
-  html_document:
+output: 
+  rmdformats::robobook:
     code_folding: hide
-    toc: TRUE
 ---
 
 ```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE)
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE, fig.width = 10, fig.height = 6)
 library(tidyverse)
-library(ggridges)
 library(scales)
 library(glue)
 library(plotly)
 library(echarts4r)
 library(here)
-theme_set(theme_light())
+theme_set(theme_light(base_family = "Montserrat Light", base_size = 15))
+
+theme_facet <- theme(strip.text = element_text(face = "bold", color = "chocolate3",
+                                  hjust = .5, size = 12),
+        strip.background = element_rect(fill = "transparent", linetype = "dotted"))
 
 ```
 
 # Introduction
 
-This project attempt to give the audience the snapshot of VN economic by analyzing the data from General Statistics Office of Vietnam which is retrieve from the official [website](https://www.gso.gov.vn)\
-This data is the collection of information regarding company revenue, population, labor force, etc
-from 2009 to 2019
-The map data come from Raster through R package `raster`, which is unfortunately didn't include the shape file of Hoang Sa and Truong Sa.
+In this report, I attempt to give the audience the snapshot of how revenues of companies in 63 provinces of Vietnam and Vietnam labor workforce had changed during a period of 2009-2019.\ 
 
+**Data source:**\
+- All data used in the report (e.g., companies’ revenue, population) are retrieved from the official [website](https://www.gso.gov.vn) of General Statistics Office (GSO) of Vietnam.\
+- The shape file (map data) comes from [GADM](https://gadm.org) through R package named `raster`, which, unfortunately, didn’t include the shape file of Hoang Sa and Truong Sa. Please kindly contact me via e-mail if you have a shape file that include those two islands.\
+If you are interested in how data are cleaned before visualization, please check out my [github](https://github.com/vohai611/vnmap-visualize) repo.\ 
 
-Because the main data we have is aggregate in tow unit. So, let's take a look at the Vietnam map and 
-have a sense of what Vn looklike and some general information.
-```{r fig.height= 8, cache=TRUE}
+Because data from GSO are aggregated in province unit, I’ll first show you the map of Vietnam, which can help you locates where each province is. When you point at a certain province, you’ll see its name and other information, such as area and population.\
+
+```{r fig.height= 8, cache=TRUE, fig.width=6}
 source(here("echart-functions/map-ggplotly.r"))
 ggplotly_population_vn()
 ```
@@ -42,31 +45,29 @@ ggplotly_population_vn()
 # read data
 company <- read_rds("cleanded-data/company.rds") %>%
   filter(tinh_thanh_pho !="Bắc Trung Bộ và duyên hải miền Trung")
-
 ```
 
-## Overal 
-This boxplot show the distribution of total company revenue over period of 2015 to 2018\
-- Ha Noi (the capital) and Ho Chi Minh city are the leader\
-- There are about 10 Town that is separate from the other town (note that Vietnam have total 63 town)\
+## Overall
+This density graph illustrates the distribution of total revenues of companies in all provinces of Vietnam over a period of 2015 to 2018. The higher the line, thhe more province under that area\
+- Ha Noi (the capital) and Ho Chi Minh city were the leading provinces, having the largest companies by revenue\
+- The total revenues of companies in most provinces are under 20000 Billions per year. Among 63 provinces, there are around 10 provinces whose companies generate revenues more than this point.\
 
 
-```{r fig.width=12}
+```{r}
 company_outlier <- company %>% 
   filter(year != 2010, !is.na(company_revenue),
          tinh_thanh_pho != "Không xác định") %>% 
-  arrange(company_revenue) %>% slice(1:5, (n()-5):n())
+  arrange(company_revenue) %>% slice(1:3, (n()-10):n())
 company %>%
   filter(year != 2010, !is.na(company_revenue),
          tinh_thanh_pho != "Không xác định") %>% 
   ggplot(aes(company_revenue, year)) +
-  geom_boxplot() +
-  geom_text(
-    position = position_nudge(x = -7000, y = .1),
+  ggridges::geom_density_ridges(alpha = 0.7)+
+  ggrepel::geom_text_repel(
+    position = position_nudge(),
     aes(company_revenue, year, label = tinh_thanh_pho),
     color = "red",
     inherit.aes = FALSE,
-    check_overlap = TRUE,
     data = company_outlier
   ) +
   geom_point(
@@ -75,63 +76,65 @@ company %>%
     inherit.aes = FALSE,
     data = company_outlier
   ) +
-  scale_x_continuous(label = comma) +
-  labs(title = "Total company revenue of each town \n",
+  geom_vline(xintercept = 20000, linetype =3, color = "firebrick")+
+  scale_x_continuous(label = comma, breaks = c(seq(-20000, 200000, 40000))) +
+  labs(title = "Total company revenue of each province \n",
        x = "Billions VND",
        y = "")
 ```
 
-Next, we will take a look at the high and the low revenue club.
+Next, we will take a look at provinces whose companies make the largest total revenues and the smallest ones.\
 
 ## The high revenue club
-Ha Noi slowly keep up with Tp HCM
-Bac Ninh and Thai Nguyen is impressive when the have small amount of company but still have the huge amount of revenue. This of course mean that they have a large company. 
+- Companies in Ha Noi slowly kept up with those in HCM city in terms of revenue generation.\
+- Despite small numbers of companies, companies located in Bac Ninh and Thai Nguyen gained huge amounts of revenue.\
 
 
-```{r fig.width= 12}
+```{r}
 
 company %>%
   filter(year != 2010, !is.na(company_revenue),
          tinh_thanh_pho != "Không xác định") %>%
   mutate(tinh_thanh_pho = fct_lump(tinh_thanh_pho,
                                    w =  abs(company_revenue),
-                                   n = 8, other_level = "Average of the others")) %>%
+                                   n = 8, other_level = "Avg of the others")) %>%
   group_by(tinh_thanh_pho) %>% 
   arrange(year) %>% 
   mutate(n_company = last(n_company)) %>% 
   ungroup() %>% 
   group_by(tinh_thanh_pho, year) %>%
   summarise(avg_revenue = mean(company_revenue),
-            n_company_2019 = mean(n_company),
+            n_company_2018 = mean(n_company),
             .groups = "drop") %>%
   mutate(bn_tn = tinh_thanh_pho %in% c("Bắc Ninh", "Thái Nguyên")) %>% 
-  mutate(tinh_thanh_pho = glue("{tinh_thanh_pho} ({comma(n_company_2019)})"),
+  mutate(tinh_thanh_pho = glue("{tinh_thanh_pho} ({comma(n_company_2018)})"),
          tinh_thanh_pho = fct_reorder(tinh_thanh_pho, abs(avg_revenue))) %>% 
   ggplot(aes(avg_revenue, tinh_thanh_pho, fill = bn_tn)) +
   geom_col(show.legend = FALSE) +
   scale_x_continuous(label = comma) +
   scale_fill_manual(values = c("#66B38BF6", "#A14442")) +
   expand_limits(x = 200000) +
-  facet_wrap( ~ year, nrow = 1) +
+  facet_wrap( ~ year, nrow = 2, scale = "free_x") +
   labs(
-    title = "Total revenue of 10 hightest town",
-    subtitle = "(x) is the number of company in 2019 \n",
+    title = "Top 10 total revenues of companies by province",
+    subtitle = "(n) is a number of companies in 2018 \n",
     x = "Billions VND",
-    y = ""
-  )
+    y = NULL
+  )+
+  theme_facet
 ```
 
-## The low revenue club
-Ha Tinh continously is the lowest revenue town over time, even after the investment of FORMOSA
-There are some strange in Thanh Hoa where their revenue decrease strongly in 2019
+## The smallest total revenues club
+- Companies in Ha Tinh generated the lowest total revenues in three consecutive years, from 2015 to 2017\
+- Notably, in 2018, the total revenues of companies in Thanh Hoa reduced sharply, which results in Thanh Hoa replacing Ha Tinh in the bottom\
 
-```{r, fig.width=12}
+```{r}
 company %>%
   filter(year != 2010, !is.na(company_revenue),
          tinh_thanh_pho != "Không xác định") %>%
   mutate(tinh_thanh_pho = fct_lump(tinh_thanh_pho,
                                    w =  1/abs(company_revenue+1000000),
-                                   n = 8, other_level = "Average of the others")) %>%
+                                   n = 8, other_level = "Avg of the others")) %>%
   group_by(tinh_thanh_pho) %>% 
   arrange(year) %>% 
   mutate(n_company = last(n_company)) %>% 
@@ -146,42 +149,21 @@ company %>%
   geom_col(show.legend = FALSE) +
   scale_x_continuous(label = comma) +
   scale_fill_manual(values = c("#66B38BF6", "#A14442")) +
-  facet_wrap( ~ year, nrow = 1) +
+  facet_wrap( ~ year, nrow = 2, scale = "free_x") +
   labs(
-    title = "Total revenue of 10 hightest town",
-    subtitle = "(x) is the number of company in 2019 \n",
+    title = "Top smallest total company revenues province",
+    subtitle = "(n) is the number of company in 2018 \n",
     x = "Billions VND",
-    y = ""
-  )
+    y = NULL
+  )+
+  theme_facet
 ```
 
 
-## What about the average 
-```{r}
-company %>%
-  mutate(avg_revenue = company_revenue/ n_company) %>%
-  filter(year %in% c(2017, 2018), !is.na(avg_revenue)) %>%
-  mutate(tinh_thanh_pho = fct_lump(
-    tinh_thanh_pho,
-    w =  abs(avg_revenue),
-    n = 10,
-    other_level = "Other (average)"
-  )) %>%
-  group_by(tinh_thanh_pho, year) %>%
-  summarise(avg_revenue = mean(avg_revenue), .groups = "drop",
-            n_company = ) %>%
-  mutate(tinh_thanh_pho = fct_reorder(tinh_thanh_pho, abs(avg_revenue))) %>%
-  ggplot(aes(avg_revenue, tinh_thanh_pho))+
-  geom_col(fill = "#66B38BF6", show.legend =  FALSE)+
-  facet_wrap(~year)+
-  labs(title = "Revenue per company of 10 highest and lowest town \n",
-       x = "Billions VND",
-       y = "")
-```
-
-# Labor force
+# Labor workforce
 
 ## Labor force over total population
+In this chart, I using the employment-to-population ratio to compare between regions because it might be fairer to take the total province population into account.\
 ```{r}
 # read data
 labor <- read_rds("cleanded-data/labor.rds") %>%
@@ -204,41 +186,51 @@ danso <- read_rds("cleanded-data/area-population.rds") %>%
 
 
 ```{r}
-labor %>%
+labor_over_pop <- labor %>%
   inner_join(danso, by = c("year", "clean_name")) %>%
   filter(year == 2018) %>%
-  mutate(labor_over_pop = n_labor / 1000 / pop_1000) %>%
-  slice_max(abs(labor_over_pop - mean(labor_over_pop)) , n = 30) %>%
-  mutate(
-    tinh_thanh_pho.x = fct_reorder(tinh_thanh_pho.x, labor_over_pop),
-    high_low = as.numeric(tinh_thanh_pho.x) > 15
-  ) %>%
-  ggplot(aes(labor_over_pop, tinh_thanh_pho.x, fill = high_low)) +
-  geom_col(show.legend = FALSE) +
-  geom_text(aes(x = labor_over_pop / 2, label = 100 * round(labor_over_pop, 3)), color =
-              "white") +
-  scale_x_continuous(labels = percent, n.breaks = 10) +
-  scale_fill_manual(values = c("#66B38BF6", "#A14442")) +
-  labs(
-    title = "Percent of labor over town population",
-    subtitle = "Highest and lowest group",
-    x = "",
-    y = ""
-  ) +
-  theme_minimal() +
-  theme(axis.text.x  = element_blank(), line = element_blank())
-  
+  mutate(labor_over_pop = n_labor / 1000 / pop_1000) %>% 
+    filter(dense_rank(labor_over_pop) <= 10 |
+             dense_rank(desc(labor_over_pop)) <= 10) %>%
+    mutate(
+      tinh_thanh_pho.x = fct_reorder(tinh_thanh_pho.x, labor_over_pop),
+      high_low = as.numeric(tinh_thanh_pho.x) > 10
+    )
 
+labor_over_pop %>% 
+    ggplot(aes(labor_over_pop, tinh_thanh_pho.x, fill = high_low)) +
+    geom_col(show.legend = FALSE) +
+    geom_text(aes(x = labor_over_pop / 2, label = 100 * round(labor_over_pop, 3)), 
+              color = "white") +
+    geom_vline(xintercept = mean(labor_over_pop$labor_over_pop),
+               linetype = 3,
+               color = "orange") +
+    geom_label(
+      label = glue("Average 10.8%"),
+      x = .13,
+      y = 3,
+      inherit.aes = FALSE
+    ) +
+    scale_x_continuous(labels = percent, n.breaks = 10) +
+    scale_fill_manual(values = c("#66B38BF6", "#A14442")) +
+    labs(
+      title = "Employment to population ratio by province in 2018",
+      subtitle = "10 Highest and 10 lowest (% scale)",
+      x = "",
+      y = ""
+    ) +
+    theme(axis.text.x  = element_blank(), line = element_blank())
+  
   
 ```
 
-From this chart, we can easily see that, the first 11 town is separate from the other. Note that Yen Bai ans Ca Mau is top 13, 14 respectively. 
-Employee here are may be not come from the home town but they are moving from the nearby region.
-people are moving to the town where there are higher job opportunity, where either are the big city with many company or town that foreign company place their large factory.
-To be more clear, we can observe this indicator on the map.
+
+The chart illustrates the percentages of employed people over the whole population of 20 provinces: 10 provinces with the highest ratios and 10 provinces with the lowest ratios. 
+As shown in the chart, we can see that Binh Duong had the highest percentage of employment to the population, followed by HCM city and Ha Noi.\
+To be more clear, I present this indicator on the map. You can filter the province by interacting with the left side bar.\
 
 
-```{r cache=TRUE, fig.height=10}
+```{r cache=TRUE}
 geojson_map <- read_rds("cleanded-data/geojson_vnmap.rds")
 labor %>%
   inner_join(danso, by = c("year", "clean_name")) %>%
@@ -249,12 +241,12 @@ labor %>%
   e_map(labor_over_pop, map = "vn") %>%
   e_visual_map(labor_over_pop) %>%
   e_theme("infographic") %>%
-  e_title(text = "Percent of labor over total population in 2018",
-          subtext = "Please click on the map to get more information")
+  e_title(text = "Employment to population ratio by province (in 2018)")
 
 ```
 
-In the North, employee concentrate to the area nearby Ha Noi. On the other hand, employee concentrate to the area of HCMC in the South. The middle of VN only have Da Nang as the central. 
+
+As presented in the map, it can be seen that in the north, workers were concentrated in Ha Noi and adjacent provinces. In the South, workers were concentrated in Ho Chi Minh city and Binh Duong. The middle of VN seem quite sparse in term of labor thought the population wasn’t, only Da Nang are comparable to the other centrals.
 
 
 ## Labor force by age group 
@@ -262,9 +254,8 @@ In the North, employee concentrate to the area nearby Ha Noi. On the other hand,
 labor_by_age <- read_rds("cleanded-data/labor-by-age.rds")
 
 ```
-
-The last figure in labor force is the distribution of labor by age group. 
-```{r fig.width=10}
+For the last part, I visualized the labor force of Vietnam by the age group.
+```{r fig.width=12}
 
 labor_by_age %>%
   filter(nhom_tuoi != "total") %>%
@@ -277,11 +268,11 @@ labor_by_age %>%
   geom_line()+
   geom_text(aes(label = round(avg_age,1)), position = position_nudge(y= .2))+
   scale_x_continuous(breaks = seq(2009,2019,1))+
-  theme_minimal()+
   labs(x= "", y= "",
-       title = "Average age of labor force")
+       title = "Avg age of labor force")
 
 ```
+After 10 year, the average age of labor force increase about 3 years old and nearly reach 40.\
 
 ```{r fig.width= 12}
 
@@ -297,15 +288,14 @@ labor_by_age %>%
   scale_x_continuous(breaks = seq(2009, 2019, 1)) +
   scale_fill_brewer(palette = 5,type = "div")+
   coord_flip()+
-  theme_minimal() +
   labs(x = "",
        y = "",
        fill = "",
        title = "Percentage of labor force by age group")
 ```
 
-We could seen the beginning of the next population wave. The percentage of labor in the intermediate group is kind of stable (around 13%) while the youngest group is decreasing it proportion. If the born rate is stable, It mean that labor force composition is became older.
-we can predict that next 10 year, the 50+ group will account for 30% labor and Vn gonna lose the advantage of golden age. The huge percent of old population will make a huge burden to the national economic.
+We could seen the beginning of the next wave: The percentage of labor in the intermediate group is kind of stable (around 13%) while the youngest group is decreasing it proportion. It mean that labor force composition is became older and Vn are slowly losing the advantage of golden age. This wave will take about 10 year to get affected. When the large part of population are the retired employee, pension payments would be the huge burden for the economy.
+
 
 
 

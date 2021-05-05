@@ -4,9 +4,9 @@ username:
 account: haivo
 server: shinyapps.io
 hostUrl: https://api.shinyapps.io/v1
-appId: 4031975
-bundleId: 4520507
+appId: 4038633
+bundleId: 4525451
 url: https://haivo.shinyapps.io/edu-dashboard/
-when: 1619442902.81769
+when: 1619533277.89523
 asMultiple: FALSE
 asStatic: FALSE
