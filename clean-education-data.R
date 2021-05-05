@@ -89,24 +89,23 @@ school <- school %>%
   select(-dia_phuong)
 
 n_class <- n_class %>%
-  clean_2("n_class")
-
+  clean_2("n_class") %>%
+  select(-dia_phuong)
 
 
 school_student %>%
   full_join(teacher) %>%
   full_join(school) %>%
   full_join(n_class) %>%
-  filter(clean_name != "ha_tay") %>%
+  filter(clean_name != "ha_tay",
+         !clean_name %in% c("lop_hoc_pho_thong_trong_cac_truong_dai_hoc",
+                            "hoc_sinh_pho_thong_trong_cac_truong_dai_hoc")) %>%
   write_rds("cleanded-data/education/n_school-student-teacher.rds")
 
 
-
-
-
 # extract religion --------------------------------------------------------
-
-n_class %>%
+read_csv("raw-data/Education/n_class.csv") %>%
+  mutate(across(-1, .fns = as.double)) %>%
   janitor::clean_names() %>%
   select(dia_phuong) %>%
   mutate(clean_name = janitor::make_clean_names(dia_phuong)) %>%

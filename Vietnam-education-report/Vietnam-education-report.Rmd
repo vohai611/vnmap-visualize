@@ -1,0 +1,85 @@
+---
+title: ""
+date: "`r Sys.Date()`"
+output:
+  rmdformats::readthedown:
+    highlight: kate
+---
+
+
+```{r setup, include=FALSE}
+library(knitr)
+library(rmdformats)
+library(tidyverse)
+library(plotly)
+library(glue)
+library(here)
+library(echarts4r)
+theme_set(theme_minimal())
+## Global options
+options(max.print="75")
+opts_chunk$set(echo=FALSE,
+	             cache=TRUE,
+               prompt=FALSE,
+               tidy=TRUE,
+               comment=NA,
+               message=FALSE,
+               warning=FALSE)
+opts_knit$set(width=75)
+
+```
+
+```{r include=FALSE}
+highschool_graduated <- read_rds(here("cleanded-data/education/highschool_graduated.rds"))
+region <- read_rds(here("cleanded-data/education/highschool_graduated.rds"))
+
+```
+
+# Introduction
+- how education vn change
+
+# under graduate
+
+## High school graduation rate
+
+```{r}
+
+
+p1 <-  highlight_key(highschool_graduated, ~dia_phuong)
+plot_ly(p1, color = I("black")) %>% 
+  group_by(dia_phuong) %>% 
+  add_lines(x = ~year, y = ~pct_graduated)
+
+## who change the most ?
+change_graduated <- highschool_graduated %>% 
+  group_by(dia_phuong) %>% 
+  summarise(tibble(max = max(pct_graduated),
+                   min = min(pct_graduated))) %>% 
+  mutate(change = max- min) %>% 
+  slice_max(change, n =15)
+
+# this is the province that have the large distance 
+(highschool_graduated %>% 
+  semi_join(change_graduated) %>% 
+  mutate(rate = pct_graduated/100) %>% 
+  ggplot(aes( year, dia_phuong, fill = rate,
+              text = glue("Year: {year}
+                          Province: {dia_phuong}
+                          Graduated rate: {round(rate,2)}")))+
+  labs(y=NULL,
+       x= NULL,
+       fill = "Graduated rate",
+       title = "top 15 provinced with most vary high school graduate rate")+
+  geom_tile()+
+  scale_fill_gradient(n.breaks = 6)) %>% 
+  ggplotly(tooltip = "text") %>% 
+  config(displayModeBar = FALSE)
+
+
+
+  
+```
+
+
+
+
