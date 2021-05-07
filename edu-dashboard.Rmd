@@ -2,7 +2,7 @@
 title: "Vietnam education dashboard"
 output: 
   flexdashboard::flex_dashboard:
-    theme: readable
+    theme: paper
     orientation: rows
     vertical_layout: scroll
 runtime:: shiny
@@ -17,7 +17,7 @@ library(plotly)
 library(here)
 library(shiny)
 library(scales)
-
+library(glue)
 ## load file
 
 geojson_map <- read_rds("cleanded-data/geojson_vnmap.rds")
@@ -31,6 +31,97 @@ school_stat <- school_stat %>%
   pivot_longer(cols = -c(clean_name, dia_phuong, year, education_level)) %>% 
   mutate(value = round(value,1)) 
  
+
+```
+
+
+Detail on province {data-navmenu="Choose tab"}
+=====================================================================================================
+```{r include=FALSE}
+## theme and color
+theme_set(theme_classic(base_family = "Montserrat"))
+theme_facet <- theme(strip.text = element_text(face = "bold", color = "chocolate3",
+                                  hjust = .5, size = 11),
+                     text= element_text(family = "Montserrat"),
+        strip.background = element_rect(fill = "gray90", color = "transparent"),
+        panel.grid.major.y = element_line(colour = "white", linetype = 3),
+        plot.background = element_rect(fill = "#E7D5BD"),
+        panel.background = element_rect(fill = "grey90"))
+
+my_pal<- c("#62959c", "#c19277", "#e1bc91", "#e3d0b9","#9dad7f", "#726a95",
+           "#d6b0b1", "#8b5e83")
+
+graduate_rate <- read_rds("cleanded-data/education/highschool_graduated.rds")
+```
+
+
+Column {.sidebar data-width=250}
+-----------------------------------------------------------------------
+<br/>
+
+```{r}
+province <- setNames(unique(school_stat$clean_name), unique(school_stat$dia_phuong))
+
+edu <- setNames(unique(school_stat$education_level),
+                          c("Elementary school", "Middle school", "High school"))
+
+selectInput("prov", "Choose province:",  choices = province, multiple = TRUE, selected = c("ha_tinh", "nghe_an"))
+selectInput("edu", "Education level:", choices = edu)
+```
+
+Row {.tabset .tabset-fade data-height=800}
+-----------------------------------------------------------------------
+
+### General information
+
+```{r}
+raw_info <- tibble(name = c("n_class", "n_student", "n_teacher", "n_school"),
+                   label = c(
+    "Number of classes",
+    "Number of students",
+    "Number of teachers",
+    "Number of schools"
+  ))
+
+#1 chart on raw data
+renderPlotly({
+  (school_stat %>% 
+  filter(clean_name %in% input$prov) %>% 
+  filter(education_level %in% input$edu) %>% 
+  filter(name %in% raw_info$name) %>% 
+  left_join(raw_info) %>% 
+  mutate(dia_phuong = fct_reorder(dia_phuong, value, .fun = max)) %>% 
+  ggplot(aes(year, value, group = dia_phuong, color = dia_phuong,
+             text = glue("Year: {year}
+                         {label}: {value}
+                         Province: {dia_phuong}"))) +
+  geom_point(size =.9)+
+  geom_line(size= .3)+
+  scale_y_continuous(labels = comma, n.breaks = 5)+
+  scale_x_discrete(breaks = seq(2002, 2019, 3))+
+  scale_color_manual(values = my_pal[1:length(input$prov)])+
+  facet_wrap(~label, scale = "free")+
+  labs(x= NULL,
+       y= NULL,
+       color = NULL)+
+    theme_facet) %>% 
+  ggplotly(tooltip = c("text")) %>% 
+    config(displayModeBar = FALSE)
+  })
+```
+
+### Highschoold graduated rate
+
+```{r}
+#2 chart 2: tile on graduate rate
+renderEcharts4r({
+  graduate_rate %>% 
+  filter(clean_name %in% input$prov) %>% 
+  e_charts(year) %>% 
+  e_heatmap(dia_phuong, pct_graduated) %>% 
+  e_visual_map(pct_graduated) %>% 
+  e_title("Graduated rate (%)")
+})
 
 ```
 
@@ -66,6 +157,7 @@ Row {.tabset .tabset-fade data-height=800}
 
 ```{r}
 renderEcharts4r({
+  title = names(category[category == input$category])
   school_stat %>% 
   filter(name %in% input$category,
          education_level %in% input$education) %>% 
@@ -74,7 +166,8 @@ renderEcharts4r({
   e_map_register("vn", geojson_map) %>%
   e_map(value, map = "vn") %>%
   e_visual_map(value) %>%
-  e_theme("shine") 
+  e_theme("infographic") %>% 
+  e_title(text = glue("{ title } across all province"))
 })
 
 ```
@@ -93,90 +186,6 @@ renderDataTable({
     dom = "Bfrtip",
     buttons = c("csv")))
 })
-```
-
-
-Detail on province {data-navmenu="Choose tab"}
-=====================================================================================================
-```{r include=FALSE}
-## theme and color
-theme_set(ggthemes::theme_fivethirtyeight())
-theme_facet <- theme(strip.text = element_text(face = "bold", color = "chocolate3",
-                                  hjust = .5, size = 12),
-        strip.background = element_rect(fill = "transparent", linetype = "dotted"))
-
-my_pal<- c("#62959c", "#c19277", "#e1bc91", "#e3d0b9","#9dad7f", "#726a95",
-           "#d6b0b1", "#8b5e83")
-
-graduate_rate <- read_rds("cleanded-data/education/highschool_graduated.rds")
-```
-
-
-Column {.sidebar data-width=250}
------------------------------------------------------------------------
-<br/>
-
-```{r}
-province <- setNames(unique(school_stat$clean_name), unique(school_stat$dia_phuong))
-
-edu <- setNames(unique(school_stat$education_level),
-                          c("Elementary school", "Middle school", "High school"))
-
-selectInput("prov", "Choose province:",  choices = province, multiple = TRUE, selected = c("ha_tinh", "nghe_an"))
-selectInput("edu", "Education level:", choices = edu)
-```
-
-Row {.tabset .tabset-fade data-height=800}
------------------------------------------------------------------------
-
-### General information
-
-```{r}
-raw_info <- tibble(name = c("n_class", "n_student", "n_teacher", "n_school"),
-                   label = c(
-    "Number of class",
-    "Number of student",
-    "Number of teacher",
-    "Number of school"
-  ))
-
-#1 chart on raw data
-renderPlotly({
-  (school_stat %>% 
-  filter(clean_name %in% input$prov) %>% 
-  filter(education_level %in% input$edu) %>% 
-  filter(name %in% raw_info$name) %>% 
-  left_join(raw_info) %>% 
-  mutate(dia_phuong = fct_reorder(dia_phuong, value, .fun = max)) %>% 
-  ggplot(aes(year, value, group = dia_phuong, color = dia_phuong)) +
-  geom_point(size =.5)+
-  geom_line(size= .3)+
-  scale_y_continuous(labels = comma, n.breaks = 5)+
-  scale_x_discrete(breaks = seq(2002, 2019, 3))+
-  scale_color_manual(values = my_pal[1:length(input$prov)])+
-  facet_wrap(~label, scale = "free")+
-  labs(x= NULL,
-       y= NULL,
-       color = NULL)+
-    theme_facet) %>% 
-  ggplotly(tooltip = c("group", "year", "value")) %>% 
-    config(displayModeBar = FALSE)
-  })
-```
-
-### Highschoold graduated rate
-
-```{r}
-#2 chart 2: tile on graduate rate
-renderEcharts4r({
-  graduate_rate %>% 
-  filter(clean_name %in% input$prov) %>% 
-  e_charts(year) %>% 
-  e_heatmap(dia_phuong, pct_graduated) %>% 
-  e_visual_map(pct_graduated) %>% 
-  e_title("Graduated rate (%)")
-})
-
 ```
 
 

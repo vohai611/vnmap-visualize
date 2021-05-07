@@ -12,3 +12,7 @@ stringr
 forcats
 plotly
 here
+glue
+echarts4r
+ggtext
+scales

@@ -1,5 +1,5 @@
 ---
-title: ""
+title: "Trực quan hóa dữ liệu giáo dục Việt Nam"
 date: "`r Sys.Date()`"
 output:
   rmdformats::readthedown:
@@ -14,8 +14,9 @@ library(tidyverse)
 library(plotly)
 library(glue)
 library(here)
-library(echarts4r)
-theme_set(theme_minimal())
+library(ggtext)
+library(scales)
+theme_set(theme_light())
 ## Global options
 options(max.print="75")
 opts_chunk$set(echo=FALSE,
@@ -31,54 +32,113 @@ opts_knit$set(width=75)
 
 ```{r include=FALSE}
 highschool_graduated <- read_rds(here("cleanded-data/education/highschool_graduated.rds"))
-region <- read_rds(here("cleanded-data/education/highschool_graduated.rds"))
 
 ```
 
-# Introduction
-- how education vn change
+# Giới thiệu
+Project này có mục tiêu visualize sự thay đổi của giáo dục Việt Nam dựa trên số liệu thống kê từ Tổng cục thống kê Việt Nam. Dữ liệu được lấy từ (website)[]
 
-# under graduate
 
-## High school graduation rate
+# Tỉ lệ tốt nghiệp cấp 3 
+Tỉ lệ tốt nghiệp cấp 3 là một trong những chỉ số quan trong 
+nhất để đánh giá năng lực giáo dục của toàn tỉnh. Trước năm ... kỳ thi tốt nghiệp THPT không được dùng để tính điểm vào đại học.
+
+```{r data-tile}
+top_change_province <-  highschool_graduated %>% 
+  group_by(dia_phuong) %>% 
+  summarise( change = max(pct_graduated) - min(pct_graduated)) %>% 
+  slice_max(change, n= 10) 
+
+other <- highschool_graduated %>% 
+  anti_join(top_change_province) %>% 
+  group_by(year) %>% 
+  summarise(pct_graduated = mean(pct_graduated, na.rm = T)) %>% 
+  mutate(dia_phuong = "Other province")
+
+label_x <- seq(2001,2016)
+label_x[label_x == 2006] = "<i style='color:#d1495b'>2006</i>"
+p1 <- highschool_graduated %>%
+  semi_join(top_change_province) %>% 
+  select(-clean_name) %>% 
+  bind_rows(other) %>% 
+  mutate(dia_phuong = fct_reorder(dia_phuong, pct_graduated, min,.desc = TRUE))
+
+p1_label <- p1 %>% 
+  filter(year == "2006") %>% 
+  mutate(pct = round(pct_graduated,1))
+```
 
 ```{r}
 
-
-p1 <-  highlight_key(highschool_graduated, ~dia_phuong)
-plot_ly(p1, color = I("black")) %>% 
-  group_by(dia_phuong) %>% 
-  add_lines(x = ~year, y = ~pct_graduated)
-
-## who change the most ?
-change_graduated <- highschool_graduated %>% 
-  group_by(dia_phuong) %>% 
-  summarise(tibble(max = max(pct_graduated),
-                   min = min(pct_graduated))) %>% 
-  mutate(change = max- min) %>% 
-  slice_max(change, n =15)
-
-# this is the province that have the large distance 
-(highschool_graduated %>% 
-  semi_join(change_graduated) %>% 
-  mutate(rate = pct_graduated/100) %>% 
-  ggplot(aes( year, dia_phuong, fill = rate,
-              text = glue("Year: {year}
-                          Province: {dia_phuong}
-                          Graduated rate: {round(rate,2)}")))+
-  labs(y=NULL,
+ggplot(p1, aes(year, dia_phuong, fill = pct_graduated))+
+  scale_x_discrete(labels = label_x)+
+  geom_tile(color = "gray20", size = .2)+
+  geom_text(aes(x= "2006", y =dia_phuong , label = pct), data = p1_label,
+            color ="#d1495b", size= 3)+
+  guides(fill = guide_colorsteps())+
+  labs(title = "Percent student graduated from High school",
+       subtitle = "Top 10 province have the highest change \n",
+       y = NULL,
        x= NULL,
-       fill = "Graduated rate",
-       title = "top 15 provinced with most vary high school graduate rate")+
-  geom_tile()+
-  scale_fill_gradient(n.breaks = 6)) %>% 
-  ggplotly(tooltip = "text") %>% 
-  config(displayModeBar = FALSE)
-
-
-
-  
+         fill = "%")+
+  theme(text = element_text(family = "Montserrat", face = "bold"),
+        legend.background = element_rect(fill = "transparent"),
+        legend.position = c(.8,1.02),
+        legend.direction = "horizontal",
+        axis.text.x = element_markdown()
+        #plot.background = element_rect(fill = "#ffeda0")
+        )
 ```
+
+dễ dàng để thấy 2006 là một năm bất thường khi tỉ lệ tốt nghiệp THPT thấp chung trên toàn quốc, đặc biệt là một số tỉnh miền núi phía Bắc
+  
+
+# Số lượng học sinh 
+
+```{r}
+school_stat <- read_rds(here("cleanded-data/education/n_school-student-teacher.rds")) %>% 
+  mutate(year = as.double(year))
+```
+
+```{r}
+school_stat %>% 
+  group_by(year, education_level) %>% 
+  summarise(m = mean(n_student, na.rm = TRUE))%>% 
+  ggplot(aes(year, m, group= education_level, color = education_level))+
+  geom_line(size = .4)+
+  geom_point()+
+  scale_y_continuous(labels = label_comma(suffix= " hs"))+
+  geom_vline(xintercept = 2003, lty = 2)+
+  geom_label(x= 2004 ,y = 150000, label = "Tạm dừng chính sách hai con",
+            size = 3, show.legend = F)+
+  geom_vline(xintercept = 2009, lty = 2)+
+  geom_label(x= 2009 ,y = 150000, label = "Trẻ em sinh 2003 vào lớp một",
+            size = 3, show.legend = F)+
+  scale_x_continuous(breaks = seq(2003, 2019, 2))+
+    labs(title = "Trung bình số học sinh mỗi tỉnh",
+         x= NULL,
+         y = NULL,
+         color = NULL)+
+  theme_minimal()+
+    theme(legend.direction = "horizontal",
+          text = element_text(family = "Montserrat", face = "bold"),
+          legend.position = "top",
+          )
+```
+
+Có sự thay đổi đáng kể về số số học sinh trong khoảng thời gian... Do chính sách hai con
+được nới lỏng.
+
+Sự thay đổi trong số học sinh cấp 2 và cấp 3 cũng có hiệu ứng chậm hơn so với cấp 1.
+
+
+```{r}
+school_stat %>% 
+  mutate(stu_per_class = n_student/ n_class) %>% 
+  ggplot(aes(stu_per_class, education_level, fill =education_level))+
+  ggridges::geom_density_ridges(alpha = .8)
+```
+
 
 
 
