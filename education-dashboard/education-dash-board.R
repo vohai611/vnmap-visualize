@@ -62,33 +62,29 @@ geojson_vn <- read_rds(here("cleanded-data/geojson_vnmap.rds"))
 # UI ----------------------------------------------------------------------
 
 ui <- dashboardPage(
-  title = "Edu dashboard",
-  dashboardHeader(title = "Edu dashboard"),
-  dashboardSidebar(sidebarMenu(
-    menuItem(
-      "General information",
-      tabName = "tab1",
-      icon = icon("globe")
-    ),
-    menuItem("data table", tabName = "tab2", icon = icon("table"))
+  title = "Vietnam statistic",
+  dashboardHeader(title = "Vietnam statistic"),
+  dashboardSidebar(
+    width = 330,
+    sidebarMenu(
+    menuItem("Education",tabName = "tab1",icon = icon("school")),
+    menuItem("Economic", tabName = "tab2", icon = icon("hand-holding-usd")),
+    echarts4rOutput("vnmap",
+                    height = "600px")
   )),
-  dashboardBody(tabItems(
+  dashboardBody(
+    dashboardthemes::shinyDashboardThemes("grey_light"),
+    tabItems(
     tabItem("tab1",
             fluidRow(
-              box(
-                width = 3,
-                echarts4rOutput("vnmap",
-                                height = "600px"),
-                solidHeader = TRUE
-              ),
               tabBox(
-                width = 9,
+                width = 12,
                 tabPanel("General information",
                          plotlyOutput("p1", height = "600px"),
                          icon = icon("globe")),
                 tabPanel("Student and teacher by gender",
-                         plotlyOutput("p2", height = "500px"),
-                         plotlyOutput("p3", height = "500px"),
+                         plotlyOutput("p2", height = "300px"),
+                         plotlyOutput("p3", height = "300px"),
                          icon = icon("venus-mars")),
                 tabPanel("Data in table", DTOutput("table1"),
                          icon = icon("table"))
@@ -104,7 +100,7 @@ ui <- dashboardPage(
 # Server ------------------------------------------------------------------
 server <- function(input, output, session){
 
-  ## render echart map
+  ## render echart map ----
   output$vnmap <- renderEcharts4r({
     hs_graduated %>%
       filter(year == 2016) %>%
@@ -112,30 +108,22 @@ server <- function(input, output, session){
       e_map_register("vn", geojson_vn) %>%
       e_map(pct_graduated, map = "vn") %>%
       e_visual_map(pct_graduated) %>%
-     # e_theme("infographic") %>%
-      e_title("High school graduated rate 2016 (%)",
-              subtext = "click on map to choose the province\n")
+      # e_theme("infographic") %>%
+      e_title(subtext = "click on map to choose the province\n")
   })
 
-  #selectd on echart
+  ### selected from echart ----
   province_selected <- reactive({
     if (is.null(input$vnmap_clicked_data$name)) ("ha_noi")
     else (make_clean_names(input$vnmap_clicked_data$name))
 
   })
-
+  ## check event
   observeEvent(input$vnmap_clicked_data, {print(input$vnmap_clicked_data$name)})
 
-   ## render DT
+## Tab1: Education ----
 
-    output$table1 <- renderDT({
-    school_stat %>%
-      filter(clean_name == province_selected()) %>%
-        select(-clean_name) %>%
-      datatable()
-  })
-
-  ## render plot(sub-tab1)
+### render subtab1: general information ----
     output$p1 <- renderPlotly({
       df <- school_stat %>%
         mutate(year = as.factor(year)) %>%
@@ -160,14 +148,14 @@ server <- function(input, output, session){
                             labels = c("Elementary", "Middle school", "High school"))+
         scale_x_discrete(breaks = seq(2002, 2019, 3))+
          scale_y_continuous(labels = comma)+
-         facet_wrap(~name, scale = "free", strip.position = "left")+
+         facet_wrap(~name, scale = "free")+
          theme_facet
 
       ggplotly(plot, tooltip = "text") %>%
         layout(hovermode = "x")
     })
 
-    ## render student plot subtab2
+#### render student plot subtab2 ----
     output$p2 <- renderPlotly({
       p2 <- student_gender %>%
         filter(clean_name == province_selected()) %>%
@@ -183,14 +171,15 @@ server <- function(input, output, session){
         scale_y_continuous(labels = comma)+
         facet_wrap(~education_level)+
         labs(title = "Student by gender",
-             x= NULL)+
+             x= NULL,
+             color = NULL)+
         theme_facet
 
       ggplotly(p2, tooltip = "text") %>%
         layout(hovermode = "x")
     })
 
-    ## render teacher plot subtab2
+#### render teacher plot subtab2 ----
     output$p3 <- renderPlotly({
       p3 <- teacher_gender %>%
         filter(clean_name == province_selected()) %>%
@@ -206,10 +195,23 @@ server <- function(input, output, session){
         scale_y_continuous(labels = comma)+
         facet_wrap(~education_level)+
         labs(title = "Teacher by gender",
-             x= NULL)+
+             x= NULL,
+             color = NULL)+
         theme_facet
         ggplotly(p3) %>%
           layout(hovermode= "x")
+    })
+
+### render subtab3: Data in table ----
+
+    output$table1 <- renderDT({
+      school_stat %>%
+        filter(clean_name == province_selected()) %>%
+        select(-clean_name) %>%
+        datatable(extensions = c("Buttons","Responsive"),
+                  options = list(
+                    dom = "Bfrtip",
+                    buttons = c("csv")))
     })
 }
 
