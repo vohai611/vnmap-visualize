@@ -53,7 +53,11 @@ school <- read_csv("raw-data/Education/number-schools.csv") %>%
 n_class <- read_csv("raw-data/Education/n_class.csv") %>%
   mutate(across(-1, .fns = as.double))
 
+female_teacher <- read_csv("raw-data/Education/female-teacher.csv") %>%
+  mutate(across(-1, .fns = as.double))
 
+femalte_student <-  read_csv("raw-data/Education/female-student.csv") %>%
+  mutate(across(-1, .fns = as.double))
 #dir.create("cleanded-data/education")
 # clean data ----
 
@@ -102,6 +106,24 @@ school_student %>%
                             "hoc_sinh_pho_thong_trong_cac_truong_dai_hoc")) %>%
   write_rds("cleanded-data/education/n_school-student-teacher.rds")
 
+
+female_teacher %>%
+  clean_2(values_to = "female_teacher") %>%
+  left_join(teacher) %>%
+  mutate(male_teacher = n_teacher - female_teacher) %>%
+  filter(male_teacher > 0) %>%
+  select(-n_teacher) %>%
+  pivot_longer(c(female_teacher, male_teacher), "gender", "value") %>%
+  write_rds("cleanded-data/education/female_teacher.rds")
+
+
+femalte_student %>%
+  clean_2("female_student") %>%
+  left_join(school_student) %>%
+  mutate(male_student = n_student - female_student) %>%
+  select(-n_student) %>%
+  pivot_longer(c(female_student, male_student), "gender", "value") %>%
+  write_rds("cleanded-data/education/female_student.rds")
 
 # extract religion --------------------------------------------------------
 read_csv("raw-data/Education/n_class.csv") %>%
