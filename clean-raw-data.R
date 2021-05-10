@@ -46,6 +46,7 @@ gioi_tinh <- gioi_tinh %>%
   mutate(across(everything(), as.character)) %>%
   pivot_longer(-tinh_thanh_pho, names_to = c("category", "year"), names_pattern = "(.*)_(\\d{4})",
                names_repair = "minimal") %>%
+  mutate(value = as.double(value)) %>%
   mutate(category = case_when(str_detect(category, "nam")~ "male",
                               str_detect(category, "nu")~  "female",
                               str_detect(category, "nong_thon")~ "rural",

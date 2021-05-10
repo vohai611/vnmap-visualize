@@ -40,6 +40,8 @@ rename_education <- . %>%
          )
 
 ## Load the data ----
+pop <- read_rds(here("cleanded-data/sex.rds"))
+
 school_stat <- read_rds(here("cleanded-data/education/n_school-student-teacher.rds")) %>%
   rename_education()
 
@@ -63,19 +65,33 @@ geojson_vn <- read_rds(here("cleanded-data/geojson_vnmap.rds"))
 
 ui <- dashboardPage(
   title = "Vietnam statistic",
-  dashboardHeader(title = "Vietnam statistic"),
+  dashboardHeader(title = "Vietnam statistic",
+                  dropdownMenu(
+                               notificationItem("Github", icon = icon("github"), href = "https://github.com/vohai611/vnmap-visualize")
+                               )),
   dashboardSidebar(
     width = 330,
     sidebarMenu(
-    menuItem("Education",tabName = "tab1",icon = icon("school")),
-    menuItem("Economic", tabName = "tab2", icon = icon("hand-holding-usd")),
-    echarts4rOutput("vnmap",
-                    height = "600px")
+    menuItem("Census", tabName = "tab1", icon = icon("users")),
+    menuItem("Education",tabName = "tab2",icon = icon("school")),
+    menuItem("Economic", tabName = "tab3", icon = icon("hand-holding-usd")),
+    echarts4rOutput("vnmap", height = "600px")
   )),
   dashboardBody(
     dashboardthemes::shinyDashboardThemes("grey_light"),
     tabItems(
     tabItem("tab1",
+      fluidRow(
+        tabBox(width = 12,
+               tabPanel("Population",
+               plotlyOutput("p4", height = "600px"),
+               icon = icon("globe")),
+               tabPanel("Data on table",
+                        DTOutput("table2"),
+                        icon = icon("table")
+                        ))
+      )),
+    tabItem("tab2",
             fluidRow(
               tabBox(
                 width = 12,
@@ -86,11 +102,11 @@ ui <- dashboardPage(
                          plotlyOutput("p2", height = "300px"),
                          plotlyOutput("p3", height = "300px"),
                          icon = icon("venus-mars")),
-                tabPanel("Data in table", DTOutput("table1"),
+                tabPanel("Data on table", DTOutput("table1"),
                          icon = icon("table"))
               )
             )),
-    tabItem("tab2",
+    tabItem("tab3",
             fluidRow(box(width = 9, solidHeader = TRUE
             )))
   ))
@@ -109,7 +125,8 @@ server <- function(input, output, session){
       e_map(pct_graduated, map = "vn") %>%
       e_visual_map(pct_graduated) %>%
       # e_theme("infographic") %>%
-      e_title(subtext = "click on map to choose the province\n")
+      e_title(text ="% Graduated from highschool (2016)",
+              subtext = glue("click on map to choose the province"))
   })
 
   ### selected from echart ----
@@ -216,6 +233,45 @@ server <- function(input, output, session){
 
 ## Tab2: Economic -----
   #
+## Tab3: Population
+  #### female-male / rural-urban visualize ----
+  output$p4 <- renderPlotly({
+
+    pop <- pop %>%
+      filter(clean_name == province_selected()) %>%
+      mutate(year = as.double(as.character(year)))
+
+    total_pop <- pop %>% filter(category == "total") %>% select(-category)
+
+    (pop %>% filter(category != "total") %>%
+        ggplot(aes(year, value, fill = category, group = category, text = glue("{year}
+                                                                               {category}
+                                                                               {value}")))+
+        geom_area()+
+        geom_area(data= total_pop,
+                  aes(year, value, group = clean_name, text = glue("Total
+                                                                   Population :{value}")),
+                  fill = "grey80",alpha = .6, inherit.aes = F)+
+        facet_wrap(~category, scale = "free")+
+        scale_x_continuous(n.breaks = 5)+
+        labs(x= NULL,
+             y= NULL,
+             fill = NULL)+
+        theme_facet) %>%
+      plotly::ggplotly(tooltip = "text") %>%
+      layout(hovermode = "x")
+  })
+  ####  data on table----
+  output$table2 <- renderDT({
+    pop %>%
+      filter(clean_name == province_selected()) %>%
+      select(-clean_name) %>%
+      datatable(extensions = c("Buttons","Responsive"),
+                options = list(
+                  dom = "Bfrtip",
+                  buttons = c("csv")))
+  })
+
 }
 
 
