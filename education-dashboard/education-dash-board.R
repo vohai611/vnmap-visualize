@@ -213,7 +213,11 @@ server <- function(input, output, session){
                     dom = "Bfrtip",
                     buttons = c("csv")))
     })
+
+## Tab2: Economic -----
+  #
 }
+
 
 shinyApp(ui, server)
 
