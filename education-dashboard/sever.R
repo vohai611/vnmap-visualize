@@ -18,6 +18,7 @@ theme_facet <- theme_light() +
       hjust = .5,
       size = 11
     ),
+    plot.title = element_text(margin = margin(b =10)),
     text = element_text(family = "Montserrat"),
     strip.background = element_rect(fill = "gray90", color = "transparent"),
     panel.grid.major.y = element_line(colour = "white", linetype = 3),
@@ -40,6 +41,12 @@ rename_education <- . %>%
          )
 
 ## Load the data ----
+area <- read_rds(here("cleanded-data/area-population.rds")) %>%
+  filter(year == 2018)
+
+company <- read_rds(here("cleanded-data/company.rds"))
+labor <- read_rds(here("cleanded-data/labor.rds"))
+
 pop <- read_rds(here("cleanded-data/sex.rds"))
 
 school_stat <- read_rds(here("cleanded-data/education/n_school-student-teacher.rds")) %>%
@@ -58,61 +65,6 @@ equal_name <- school_stat %>%
 # load map for echart
 geojson_vn <- read_rds(here("cleanded-data/geojson_vnmap.rds"))
 
-
-
-
-# UI ----------------------------------------------------------------------
-
-ui <- dashboardPage(
-  title = "Vietnam statistic",
-  dashboardHeader(title = "Vietnam statistic",
-                  dropdownMenu(
-                               notificationItem("Github", icon = icon("github"), href = "https://github.com/vohai611/vnmap-visualize")
-                               )),
-  dashboardSidebar(
-    width = 330,
-    sidebarMenu(
-    menuItem("Census", tabName = "tab1", icon = icon("users")),
-    menuItem("Education",tabName = "tab2",icon = icon("school")),
-    menuItem("Economic", tabName = "tab3", icon = icon("hand-holding-usd")),
-    echarts4rOutput("vnmap", height = "600px")
-  )),
-  dashboardBody(
-    dashboardthemes::shinyDashboardThemes("grey_light"),
-    tabItems(
-    tabItem("tab1",
-      fluidRow(
-        tabBox(width = 12,
-               tabPanel("Population",
-               plotlyOutput("p4", height = "600px"),
-               icon = icon("globe")),
-               tabPanel("Data on table",
-                        DTOutput("table2"),
-                        icon = icon("table")
-                        ))
-      )),
-    tabItem("tab2",
-            fluidRow(
-              tabBox(
-                width = 12,
-                tabPanel("General information",
-                         plotlyOutput("p1", height = "600px"),
-                         icon = icon("globe")),
-                tabPanel("Student and teacher by gender",
-                         plotlyOutput("p2", height = "300px"),
-                         plotlyOutput("p3", height = "300px"),
-                         icon = icon("venus-mars")),
-                tabPanel("Data on table", DTOutput("table1"),
-                         icon = icon("table"))
-              )
-            )),
-    tabItem("tab3",
-            fluidRow(box(width = 9, solidHeader = TRUE
-            )))
-  ))
-)
-
-
 # Server ------------------------------------------------------------------
 server <- function(input, output, session){
 
@@ -123,11 +75,14 @@ server <- function(input, output, session){
       e_charts(dia_phuong) %>%
       e_map_register("vn", geojson_vn) %>%
       e_map(pct_graduated, map = "vn") %>%
-      e_visual_map(pct_graduated) %>%
+      #e_visual_map(pct_graduated) %>%
       # e_theme("infographic") %>%
-      e_title(text ="% Graduated from highschool (2016)",
-              subtext = glue("click on map to choose the province"))
+      e_title(
+        #text ="% Graduated from highschool (2016)",
+        subtext = glue("{input$vnmap_clicked_data$name} is now selected
+                       Click on map to choose the province"))
   })
+
 
   ### selected from echart ----
   province_selected <- reactive({
@@ -139,6 +94,22 @@ server <- function(input, output, session){
   observeEvent(input$vnmap_clicked_data, {print(input$vnmap_clicked_data$name)})
 
 ## Tab1: Education ----
+
+  ### render valuebox -------
+  edu_selected <- reactive({
+    area %>% filter(year == 2018,
+                    clean_name == province_selected())
+  })
+  output$tab1_info1 <- renderValueBox(
+    valueBox(comma(edu_selected()$dien_tich_km2,
+                   suffix = " km2"),
+             subtitle = "Area",
+             icon = icon("chart-area")))
+
+  output$tab1_info2 <- renderValueBox(valueBox(edu_selected()$mat_do_dan_so_nguoi_km2,
+                                               subtitle = "People per km2",
+                                               icon = icon("male")))
+
 
 ### render subtab1: general information ----
     output$p1 <- renderPlotly({
@@ -156,7 +127,7 @@ server <- function(input, output, session){
                          value: {comma(round(value,-1))}")))+
          geom_line(size = .4, alpha = .6)+
          geom_point(size = .8)+
-         labs(title =glue("{df$dia_phuong[[1]]} Province"),
+         labs(title = glue("{df$dia_phuong[[1]]} Province"),
               subtitle = " ",
               x = NULL,
               y= NULL,
@@ -225,15 +196,43 @@ server <- function(input, output, session){
       school_stat %>%
         filter(clean_name == province_selected()) %>%
         select(-clean_name) %>%
-        datatable(extensions = c("Buttons","Responsive"),
+        datatable(extensions = c("Buttons"),
                   options = list(
                     dom = "Bfrtip",
-                    buttons = c("csv")))
+                    buttons = list("pageLength",
+                                   list(extend = "collection",
+                                   buttons = c("csv", "excel", "pdf"),
+                                   text ="Download"))))
     })
 
-## Tab2: Economic -----
-  #
-## Tab3: Population
+## Tab2: Economic ----
+  ## eco of selected province in 2018
+  inf_box_dt <- reactive({
+      company %>%
+      filter(clean_name == province_selected(),
+                         year == 2018)
+    })
+  ### valuebox ----
+  output$tab3_info1 <- renderValueBox({
+    valueBox(value = comma(inf_box_dt()$company_revenue,suffix = " billions"),
+             subtitle = "VND Total company revenue",
+             color = ifelse(inf_box_dt()$company_revenue >=0, "blue", "red"),
+             icon = icon("search-dollar"))
+  })
+
+  output$tab3_info2 <- renderValueBox({
+    valueBox(value = comma(inf_box_dt()$n_company),
+             subtitle = "Companies",
+             icon = icon("building"))
+  })
+
+  output$tab3_info3 <- renderValueBox({
+    labor_val <- labor %>% filter(clean_name == province_selected(), year == 2018) %>% pull(value)
+    valueBox(value = comma(labor_val),
+             subtitle = "Labors",
+             icon = icon("male"))
+  })
+## Tab3: Population ----
   #### female-male / rural-urban visualize ----
   output$p4 <- renderPlotly({
 
@@ -254,7 +253,9 @@ server <- function(input, output, session){
                   fill = "grey80",alpha = .6, inherit.aes = F)+
         facet_wrap(~category, scale = "free")+
         scale_x_continuous(n.breaks = 5)+
-        labs(x= NULL,
+        scale_y_continuous(labels = comma)+
+        labs(title = "",
+             x= NULL,
              y= NULL,
              fill = NULL)+
         theme_facet) %>%
@@ -266,16 +267,18 @@ server <- function(input, output, session){
     pop %>%
       filter(clean_name == province_selected()) %>%
       select(-clean_name) %>%
-      datatable(extensions = c("Buttons","Responsive"),
+      datatable(extensions = c("Buttons"),
                 options = list(
                   dom = "Bfrtip",
-                  buttons = c("csv")))
+                  buttons = list("pageLength",
+                                 list(extend = "collection",
+                                      buttons = c("csv", "excel", "pdf"),
+                                      text ="Download"))))
   })
 
 }
 
 
-shinyApp(ui, server)
 
 
 

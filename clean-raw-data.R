@@ -58,14 +58,21 @@ gioi_tinh <- gioi_tinh %>%
 write_rds(gioi_tinh, "cleanded-data/sex.rds")
 
 # labor -------------------------------------------------------------------
+
 laodong <-  read_csv("raw-data/laodong.csv") %>%
   janitor::clean_names() %>%
   filter_union() %>%
-  mutate(year = as_factor(year)) %>%
-  inner_join(clean_name, by =c("tinh_thanh_pho" = "dia_phuong"))
+  mutate(year = as_factor(year))
 
-write_rds(laodong, "cleanded-data/labor.rds")
+laodong_clean_name <- laodong %>%
+  distinct(tinh_thanh_pho)%>%
+  mutate(clean_name = janitor::make_clean_names(tinh_thanh_pho))
 
+laodong %>%
+  inner_join(laodong_clean_name) %>%
+write_rds( "cleanded-data/labor.rds")
+
+# company -----------------------
 dn1 <- read_csv("raw-data/so_doanhnghiep.csv") %>%
   janitor::clean_names() %>%
   filter_union() %>%
@@ -75,10 +82,15 @@ dn2 <- read_csv("raw-data/loinhuan_dn.csv") %>%
   filter_union() %>%
   rename(company_revenue = value)
 
-dn1 %>%
+dn <- dn1 %>%
   full_join(dn2) %>%
-  mutate(year = as_factor(year)) %>%
-  inner_join(clean_name, by =c("tinh_thanh_pho" = "dia_phuong")) %>%
+  mutate(year = as_factor(year))
+
+dn_clean_name <- dn %>% distinct(tinh_thanh_pho)%>%
+  mutate(clean_name = janitor::make_clean_names(tinh_thanh_pho))
+
+dn %>%
+  inner_join(dn_clean_name) %>%
   write_rds("cleanded-data/company.rds")
 
 
@@ -88,7 +100,6 @@ read_csv("raw-data/labor-by-age.csv") %>%
   mutate(nhom_tuoi = if_else(nhom_tuoi =='TỔNG SỐ', "total", nhom_tuoi)) %>%
   transmute(nhom_tuoi, year = parse_number(name), n_labor = value) %>%
   write_rds("cleanded-data/labor-by-age.rds")
-
 
 
 
